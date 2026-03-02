@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+:root {
+  --primary: #2563eb;
+  --secondary: #64748b;
+  --accent: #0f172a;
+  --success: #10b981;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
