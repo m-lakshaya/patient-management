@@ -4,6 +4,6 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/patient/', // Replace with your repository name if it differs
+  base: '/patient-management/',
   plugins: [react(), tailwindcss()],
 })

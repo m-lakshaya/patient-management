@@ -2,7 +2,7 @@
   "name": "patient-help-desk",
   "private": true,
   "version": "0.0.0",
-  "homepage": "https://VijayKannaan.github.io/patient",
+  "homepage": "https://m-lakshaya.github.io/patient-management",
   "type": "module",
   "scripts": {
     "dev": "vite",
