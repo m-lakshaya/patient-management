@@ -9,34 +9,59 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
-        // Check active sessions and sets the user
-        const getSession = async () => {
-            const { data: { session } } = await supabase.auth.getSession()
-            setUser(session?.user ?? null)
+        console.log('AuthProvider: Initializing...')
 
-            if (session?.user) {
-                const { data } = await supabase
-                    .from('profiles')
-                    .select('*')
-                    .eq('id', session.user.id)
-                    .single()
-                setProfile(data)
+        const timeoutPromise = (ms) => new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Timeout')), ms)
+        )
+
+        const getSession = async () => {
+            try {
+                console.log('AuthProvider: Fetching session...')
+                // Race getSession against a 5s timeout
+                const { data: { session } } = await Promise.race([
+                    supabase.auth.getSession(),
+                    timeoutPromise(5000)
+                ])
+
+                console.log('AuthProvider: Session data received:', session?.user?.id || 'No user')
+                setUser(session?.user ?? null)
+
+                if (session?.user) {
+                    await fetchProfile(session.user)
+                }
+            } catch (err) {
+                console.warn('AuthProvider: Session fetch timed out or failed:', err.message)
+            } finally {
+                setLoading(false)
+                console.log('AuthProvider: Loading finished.')
             }
-            setLoading(false)
+        }
+
+        const fetchProfile = async (currentUser) => {
+            try {
+                console.log('AuthProvider: Fetching profile for:', currentUser.id)
+                const { data, error } = await Promise.race([
+                    supabase.from('profiles').select('*').eq('id', currentUser.id).single(),
+                    timeoutPromise(5000)
+                ])
+
+                if (error) throw error
+                console.log('AuthProvider: Profile loaded.')
+                setProfile(data)
+            } catch (err) {
+                console.warn('AuthProvider: Profile fetch failed, using metadata fallback.')
+                setProfile({ role: currentUser.user_metadata?.role || 'patient' })
+            }
         }
 
         getSession()
 
-        // Listen for changes on auth state (sign in, sign out, etc.)
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+            console.log('AuthProvider: Auth Event:', _event)
             setUser(session?.user ?? null)
             if (session?.user) {
-                const { data } = await supabase
-                    .from('profiles')
-                    .select('*')
-                    .eq('id', session.user.id)
-                    .single()
-                setProfile(data)
+                await fetchProfile(session.user)
             } else {
                 setProfile(null)
             }

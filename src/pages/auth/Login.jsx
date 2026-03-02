@@ -1,47 +1,64 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../../supabaseClient'
 import { useNavigate, Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { LogIn, Mail, Lock, Loader2 } from 'lucide-react'
+import { useAuth } from '../../hooks/useAuth'
 
 export default function Login() {
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [loading, setLoading] = useState(false)
     const navigate = useNavigate()
+    const { user, profile } = useAuth()
+
+    // EFFECT: If background listener (useAuth) detects a session, redirect immediately
+    useEffect(() => {
+        if (user && profile) {
+            console.log('Login: Background session detected, redirecting...', profile.role)
+            redirectByRole(profile.role)
+        }
+    }, [user, profile])
 
     const handleLogin = async (e) => {
         e.preventDefault()
         setLoading(true)
+        console.log('--- LOGIN START ---')
 
         try {
-            const { data, error } = await supabase.auth.signInWithPassword({
-                email,
-                password,
-            })
+            console.log('Calling supabase.auth.signInWithPassword...')
 
-            if (error) throw error
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Auth call timeout')), 5000)
+            )
 
-            // Fetch profile to redirect based on role
-            const { data: profile, error: profileError } = await supabase
-                .from('profiles')
-                .select('role')
-                .eq('id', data.user.id)
-                .single()
+            // Race the auth call against a 5s timeout
+            try {
+                await Promise.race([
+                    supabase.auth.signInWithPassword({ email, password }),
+                    timeoutPromise
+                ])
+                console.log('--- AUTH CALL RESOLVED ---')
+            } catch (err) {
+                console.warn('--- AUTH CALL TIMED OUT OR FAILED ---', err.message)
+                // We don't throw here because useAuth (the background listener) 
+                // might still catch the SIGNED_IN event and redirect us.
+            }
 
-            if (profileError) throw profileError
-
-            toast.success('Successfully logged in!')
-
-            if (profile.role === 'patient') navigate('/patient/dashboard')
-            else if (profile.role === 'staff') navigate('/staff/dashboard')
-            else if (profile.role === 'admin') navigate('/admin/dashboard')
+            console.log('--- WAITING FOR REDIRECT FROM BACKGROUND LISTENER ---')
+            toast.success('Sign in initiated...')
 
         } catch (error) {
+            console.error('--- LOGIN CAUGHT EXCEPTION ---', error)
             toast.error(error.message || 'Failed to login')
-        } finally {
             setLoading(false)
         }
+    }
+
+    const redirectByRole = (role) => {
+        if (role === 'admin') navigate('/admin/dashboard')
+        else if (role === 'staff') navigate('/staff/dashboard')
+        else navigate('/patient/dashboard')
     }
 
     return (
