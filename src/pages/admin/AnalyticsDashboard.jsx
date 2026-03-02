@@ -22,6 +22,7 @@ import {
     ArcElement
 } from 'chart.js'
 import { Line, Bar, Doughnut } from 'react-chartjs-2'
+import { withTimeout } from '../../utils/api'
 
 ChartJS.register(
     CategoryScale,
@@ -46,19 +47,25 @@ export default function AnalyticsDashboard() {
 
     useEffect(() => {
         async function fetchData() {
-            const [p, d, t, q] = await Promise.all([
-                supabase.from('patients').select('*', { count: 'exact', head: true }),
-                supabase.from('doctors').select('*', { count: 'exact', head: true }),
-                supabase.from('treatments').select('*', { count: 'exact', head: true }),
-                supabase.from('queries').select('*', { count: 'exact', head: true })
-            ])
-            setStats({
-                patients: p.count || 0,
-                doctors: d.count || 0,
-                treatments: t.count || 0,
-                queries: q.count || 0
-            })
-            setLoading(false)
+            try {
+                const [p, d, t, q] = await Promise.allSettled([
+                    withTimeout(supabase.from('patients').select('*', { count: 'exact', head: true }), 5000),
+                    withTimeout(supabase.from('doctors').select('*', { count: 'exact', head: true }), 5000),
+                    withTimeout(supabase.from('treatments').select('*', { count: 'exact', head: true }), 5000),
+                    withTimeout(supabase.from('queries').select('*', { count: 'exact', head: true }), 5000)
+                ])
+
+                setStats({
+                    patients: p.status === 'fulfilled' ? p.value.count || 0 : 0,
+                    doctors: d.status === 'fulfilled' ? d.value.count || 0 : 0,
+                    treatments: t.status === 'fulfilled' ? t.value.count || 0 : 0,
+                    queries: q.status === 'fulfilled' ? q.value.count || 0 : 0
+                })
+            } catch (error) {
+                console.error('Analytics Error:', error.message)
+            } finally {
+                setLoading(false)
+            }
         }
         fetchData()
     }, [])

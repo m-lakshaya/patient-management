@@ -9,9 +9,11 @@ import {
     Clock,
     CheckCircle2,
     AlertCircle,
-    Loader2
+    Loader2,
+    X
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { withTimeout } from '../../utils/api'
 
 export default function PatientDashboard() {
     const { profile } = useAuth()
@@ -25,49 +27,48 @@ export default function PatientDashboard() {
 
     useEffect(() => {
         async function fetchDashboardData() {
-            if (!profile) return
+            if (!profile?.id) {
+                setLoading(false)
+                return
+            }
 
             try {
-                // Fetch Patient ID first
-                const { data: patientData } = await supabase
-                    .from('patients')
-                    .select('id')
-                    .eq('user_id', profile.id)
-                    .single()
+                console.log('Dashboard: Fetching patient record...')
+                // Fetch Patient ID
+                const { data: patientData, error: patientError } = await withTimeout(
+                    supabase.from('patients').select('id').eq('user_id', profile.id).single(),
+                    5000,
+                    'Patient Lookup'
+                )
 
-                if (!patientData) return
+                if (patientError || !patientData) {
+                    console.warn('Dashboard: Patient record not found or timed out.')
+                    setLoading(false)
+                    return
+                }
 
                 const patientId = patientData.id
+                console.log('Dashboard: Patient ID found:', patientId)
 
-                // Fetch counts
-                const [appts, treats, queries] = await Promise.all([
-                    supabase.from('appointments').select('*', { count: 'exact', head: true }).eq('patient_id', patientId),
-                    supabase.from('treatments').select('*', { count: 'exact', head: true }).eq('patient_id', patientId),
-                    supabase.from('queries').select('*', { count: 'exact', head: true }).eq('patient_id', patientId)
+                // Fetch counts and activity in parallel with a timeout
+                const [appts, treats, queries, activity] = await Promise.allSettled([
+                    withTimeout(supabase.from('appointments').select('*', { count: 'exact', head: true }).eq('patient_id', patientId), 5000),
+                    withTimeout(supabase.from('treatments').select('*', { count: 'exact', head: true }).eq('patient_id', patientId), 5000),
+                    withTimeout(supabase.from('queries').select('*', { count: 'exact', head: true }).eq('patient_id', patientId), 5000),
+                    withTimeout(supabase.from('appointments').select('id, appointment_date, status, doctors(name, specialization)').eq('patient_id', patientId).order('appointment_date', { ascending: false }).limit(5), 5000)
                 ])
 
                 setStats({
-                    appointments: appts.count || 0,
-                    treatments: treats.count || 0,
-                    queries: queries.count || 0
+                    appointments: appts.status === 'fulfilled' ? appts.value.count || 0 : 0,
+                    treatments: treats.status === 'fulfilled' ? treats.value.count || 0 : 0,
+                    queries: queries.status === 'fulfilled' ? queries.value.count || 0 : 0
                 })
 
-                // Fetch recent appointments as activity
-                const { data: latestAppts } = await supabase
-                    .from('appointments')
-                    .select(`
-            id,
-            appointment_date,
-            status,
-            doctors (name, specialization)
-          `)
-                    .eq('patient_id', patientId)
-                    .order('appointment_date', { ascending: false })
-                    .limit(5)
-
-                setRecentActivity(latestAppts || [])
+                if (activity.status === 'fulfilled') {
+                    setRecentActivity(activity.value.data || [])
+                }
             } catch (error) {
-                console.error('Error fetching dashboard data:', error)
+                console.error('Dashboard Error:', error.message)
             } finally {
                 setLoading(false)
             }
@@ -128,7 +129,7 @@ export default function PatientDashboard() {
                         recentActivity.map((activity) => (
                             <div key={activity.id} className="p-6 flex items-center gap-4 hover:bg-slate-50/50 transition-colors">
                                 <div className={`p-2 rounded-full ${activity.status === 'completed' ? 'bg-emerald-100 text-emerald-600' :
-                                        activity.status === 'cancelled' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'
+                                    activity.status === 'cancelled' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'
                                     }`}>
                                     {activity.status === 'completed' ? <CheckCircle2 className="w-5 h-5" /> :
                                         activity.status === 'cancelled' ? <X className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
@@ -143,7 +144,7 @@ export default function PatientDashboard() {
                                 </div>
                                 <div className="text-right">
                                     <span className={`px-2.5 py-1 rounded-full text-xs font-bold capitalize ${activity.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
-                                            activity.status === 'cancelled' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'
+                                        activity.status === 'cancelled' ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'
                                         }`}>
                                         {activity.status}
                                     </span>

@@ -51,7 +51,11 @@ export const AuthProvider = ({ children }) => {
                 setProfile(data)
             } catch (err) {
                 console.warn('AuthProvider: Profile fetch failed, using metadata fallback.')
-                setProfile({ role: currentUser.user_metadata?.role || 'patient' })
+                setProfile({
+                    id: currentUser.id,
+                    role: currentUser.user_metadata?.role || 'patient',
+                    full_name: currentUser.user_metadata?.full_name || 'User'
+                })
             }
         }
 

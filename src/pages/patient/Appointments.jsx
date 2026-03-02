@@ -7,9 +7,11 @@ import {
     User,
     Plus,
     Loader2,
-    AlertCircle,
+    ArrowRight,
     Stethoscope
 } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { withTimeout } from '../../utils/api'
 import { toast } from 'react-hot-toast'
 
 export default function Appointments() {
@@ -19,27 +21,36 @@ export default function Appointments() {
 
     useEffect(() => {
         async function fetchAppointments() {
-            if (!profile) return
+            if (!profile?.id) {
+                setLoading(false)
+                return
+            }
 
-            const { data: patientData } = await supabase
-                .from('patients')
-                .select('id')
-                .eq('user_id', profile.id)
-                .single()
+            try {
+                const { data: patientData, error: patientError } = await withTimeout(
+                    supabase.from('patients').select('id').eq('user_id', profile.id).single(),
+                    5000,
+                    'Patient Lookup'
+                )
 
-            if (!patientData) return
+                if (patientError || !patientData) {
+                    setLoading(false)
+                    return
+                }
 
-            const { data } = await supabase
-                .from('appointments')
-                .select(`
-          *,
-          doctors (name, specialization)
-        `)
-                .eq('patient_id', patientData.id)
-                .order('appointment_date', { ascending: false })
+                const { data, error } = await withTimeout(
+                    supabase.from('appointments').select('*, doctors(name, specialization)').eq('patient_id', patientData.id).order('appointment_date', { ascending: false }),
+                    5000,
+                    'Appointments Fetch'
+                )
 
-            setAppointments(data || [])
-            setLoading(false)
+                if (error) throw error
+                setAppointments(data || [])
+            } catch (error) {
+                console.error('Appointments Error:', error.message)
+            } finally {
+                setLoading(false)
+            }
         }
         fetchAppointments()
     }, [profile])

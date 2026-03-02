@@ -12,6 +12,7 @@ import {
     Loader2,
     Stethoscope
 } from 'lucide-react'
+import { withTimeout } from '../../utils/api'
 
 export default function TreatmentHistory() {
     const { profile } = useAuth()
@@ -23,29 +24,34 @@ export default function TreatmentHistory() {
 
     useEffect(() => {
         async function fetchTreatments() {
-            if (!profile) return
+            if (!profile?.id) {
+                setLoading(false)
+                return
+            }
 
             try {
-                const { data: patientData } = await supabase
-                    .from('patients')
-                    .select('id')
-                    .eq('user_id', profile.id)
-                    .single()
+                const { data: patientData, error: patientError } = await withTimeout(
+                    supabase.from('patients').select('id').eq('user_id', profile.id).single(),
+                    5000,
+                    'Patient Lookup'
+                )
 
-                if (!patientData) return
+                if (patientError || !patientData) {
+                    console.warn('Treatments: Patient record not found.')
+                    setLoading(false)
+                    return
+                }
 
-                const { data } = await supabase
-                    .from('treatments')
-                    .select(`
-            *,
-            doctors (name, specialization)
-          `)
-                    .eq('patient_id', patientData.id)
-                    .order('treatment_date', { ascending: false })
+                const { data, error } = await withTimeout(
+                    supabase.from('treatments').select('*, doctors(name, specialization)').eq('patient_id', patientData.id).order('treatment_date', { ascending: false }),
+                    5000,
+                    'Treatments Fetch'
+                )
 
+                if (error) throw error
                 setTreatments(data || [])
             } catch (error) {
-                console.error('Error:', error)
+                console.error('Treatments Error:', error.message)
             } finally {
                 setLoading(false)
             }
@@ -177,8 +183,8 @@ export default function TreatmentHistory() {
                                     key={i}
                                     onClick={() => setPage(i + 1)}
                                     className={`w-10 h-10 rounded-lg text-sm font-bold transition-all ${page === i + 1
-                                            ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
-                                            : 'hover:bg-white text-slate-600'
+                                        ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
+                                        : 'hover:bg-white text-slate-600'
                                         }`}
                                 >
                                     {i + 1}

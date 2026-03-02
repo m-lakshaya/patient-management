@@ -9,8 +9,10 @@ import {
     Trash2,
     Loader2,
     AlertCircle,
-    FileIcon
+    FileIcon,
+    Calendar as CalendarIcon
 } from 'lucide-react'
+import { withTimeout } from '../../utils/api'
 import { toast } from 'react-hot-toast'
 
 export default function MedicalReports() {
@@ -20,28 +22,51 @@ export default function MedicalReports() {
     const [uploading, setUploading] = useState(false)
     const [patientId, setPatientId] = useState(null)
 
+    const fetchReports = async (pid) => {
+        setLoading(true)
+        try {
+            const { data, error } = await withTimeout(
+                supabase.from('medical_reports').select('*').eq('patient_id', pid).order('uploaded_at', { ascending: false }),
+                5000,
+                'Reports Fetch'
+            )
+            if (error) throw error
+            setReports(data || [])
+        } catch (error) {
+            console.error('Reports Error:', error.message)
+        } finally {
+            setLoading(false)
+        }
+    }
+
     useEffect(() => {
         async function init() {
-            if (!profile) return
-            const { data } = await supabase.from('patients').select('id').eq('user_id', profile.id).single()
-            if (data) {
-                setPatientId(data.id)
-                fetchReports(data.id)
+            if (!profile?.id) {
+                setLoading(false)
+                return
+            }
+
+            try {
+                const { data: patientData, error: patientError } = await withTimeout(
+                    supabase.from('patients').select('id').eq('user_id', profile.id).single(),
+                    5000,
+                    'Patient Lookup'
+                )
+
+                if (patientError || !patientData) {
+                    console.warn('Reports: Patient record not found.')
+                    setLoading(false)
+                    return
+                }
+                setPatientId(patientData.id)
+                fetchReports(patientData.id)
+            } catch (error) {
+                console.error('Reports Init Error:', error.message)
+                setLoading(false)
             }
         }
         init()
     }, [profile])
-
-    async function fetchReports(id) {
-        setLoading(true)
-        const { data } = await supabase
-            .from('medical_reports')
-            .select('*')
-            .eq('patient_id', id)
-            .order('uploaded_at', { ascending: false })
-        setReports(data || [])
-        setLoading(false)
-    }
 
     async function handleUpload(e) {
         const file = e.target.files[0]

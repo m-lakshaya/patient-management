@@ -8,8 +8,10 @@ import {
     CheckCircle2,
     HelpCircle,
     Loader2,
-    X
+    X,
+    Calendar as CalendarIcon
 } from 'lucide-react'
+import { withTimeout } from '../../utils/api'
 import { toast } from 'react-hot-toast'
 
 export default function SupportQueries() {
@@ -23,26 +25,60 @@ export default function SupportQueries() {
     const [patientId, setPatientId] = useState(null)
 
     useEffect(() => {
-        async function init() {
-            if (!profile) return
-            const { data } = await supabase.from('patients').select('id').eq('user_id', profile.id).single()
-            if (data) {
-                setPatientId(data.id)
-                fetchQueries(data.id)
+        async function fetchQueries() {
+            if (!profile?.id) {
+                setLoading(false)
+                return
+            }
+
+            try {
+                const { data: patientData, error: patientError } = await withTimeout(
+                    supabase.from('patients').select('id').eq('user_id', profile.id).single(),
+                    5000,
+                    'Patient Lookup'
+                )
+
+                if (patientError || !patientData) {
+                    setLoading(false)
+                    return
+                }
+                setPatientId(patientData.id) // Keep this to set patientId for handleSubmit
+
+                const { data, error } = await withTimeout(
+                    supabase.from('queries').select('*').eq('patient_id', patientData.id).order('created_at', { ascending: false }),
+                    5000,
+                    'Queries Fetch'
+                )
+
+                if (error) throw error
+                setQueries(data || [])
+            } catch (error) {
+                console.error('Queries Error:', error.message)
+            } finally {
+                setLoading(false)
             }
         }
-        init()
+        fetchQueries()
     }, [profile])
 
-    async function fetchQueries(id) {
+    // Re-introduce a separate fetchQueries function if it's called outside useEffect,
+    // or modify handleSubmit to use the logic directly.
+    // For now, assuming handleSubmit will call a simplified version or rely on patientId state.
+    async function refetchQueries(id) {
         setLoading(true)
-        const { data } = await supabase
-            .from('queries')
-            .select('*')
-            .eq('patient_id', id)
-            .order('created_at', { ascending: false })
-        setQueries(data || [])
-        setLoading(false)
+        try {
+            const { data, error } = await withTimeout(
+                supabase.from('queries').select('*').eq('patient_id', id).order('created_at', { ascending: false }),
+                5000,
+                'Queries Refetch'
+            )
+            if (error) throw error
+            setQueries(data || [])
+        } catch (error) {
+            console.error('Refetch Queries Error:', error.message)
+        } finally {
+            setLoading(false)
+        }
     }
 
     async function handleSubmit(e) {
@@ -60,7 +96,7 @@ export default function SupportQueries() {
             setIsModalOpen(false)
             setSubject('')
             setDescription('')
-            fetchQueries(patientId)
+            refetchQueries(patientId)
         } catch (error) {
             toast.error(error.message)
         } finally {
@@ -98,10 +134,10 @@ export default function SupportQueries() {
                                             <Clock className="w-3 h-3" /> {new Date(q.created_at).toLocaleDateString()}
                                         </span>
                                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${q.status === 'open' ? 'bg-blue-50 text-blue-700' :
-                                                q.status === 'in_progress' ? 'bg-amber-50 text-amber-700' :
-                                                    'bg-emerald-50 text-emerald-700'
+                                            q.status === 'in_progress' ? 'bg-amber-50 text-amber-700' :
+                                                'bg-emerald-50 text-emerald-700'
                                             }`}>
-                                            {q.status.replace('_', ' ')}
+                                            {(q.status || 'open').replace('_', ' ')}
                                         </span>
                                     </div>
                                 </div>
