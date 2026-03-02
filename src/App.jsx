@@ -18,6 +18,7 @@ import PatientList from './pages/staff/PatientList'
 
 import UserManagement from './pages/admin/UserManagement'
 import AnalyticsDashboard from './pages/admin/AnalyticsDashboard'
+import DoctorManagement from './pages/admin/DoctorManagement'
 
 function App() {
     return (
@@ -70,8 +71,8 @@ function App() {
                                 <Routes>
                                     <Route path="dashboard" element={<AnalyticsDashboard />} />
                                     <Route path="users" element={<UserManagement />} />
-                                    <Route path="doctors" element={<div>Doctors</div>} />
-                                    <Route path="analytics" element={<AnalyticsDashboard />} />
+                                    <Route path="doctors" element={<DoctorManagement />} />
+                                    <Route path="queries" element={<QueryManagement />} />
                                 </Routes>
                             </ErrorBoundary>
                         </DashboardLayout>

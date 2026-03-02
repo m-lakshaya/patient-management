@@ -53,14 +53,14 @@ export default function QueryManagement() {
                 .from('queries')
                 .update({
                     response,
-                    status: 'resolved',
+                    status: 'completed',
                     assigned_to: profile.id,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', selectedQuery.id)
 
             if (error) throw error
-            toast.success('Response sent and query resolved')
+            toast.success('Response sent and query completed')
             setResponse('')
             setSelectedQuery(null)
             fetchQueries()
@@ -108,8 +108,8 @@ export default function QueryManagement() {
                             <div className="flex-1 space-y-4">
                                 <div className="flex items-center gap-3">
                                     <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${q.status === 'open' ? 'bg-blue-50 text-blue-700' :
-                                            q.status === 'in_progress' ? 'bg-amber-50 text-amber-700' :
-                                                'bg-emerald-50 text-emerald-700'
+                                        q.status === 'in_progress' ? 'bg-amber-50 text-amber-700' :
+                                            'bg-emerald-50 text-emerald-700'
                                         }`}>
                                         {q.status.replace('_', ' ')}
                                     </span>
@@ -192,7 +192,7 @@ export default function QueryManagement() {
                                     className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 flex items-center justify-center gap-2"
                                 >
                                     {submitting && <Loader2 className="w-5 h-5 animate-spin" />}
-                                    Send Response & Resolve
+                                    Send Response & Complete
                                 </button>
                             </form>
                         </div>

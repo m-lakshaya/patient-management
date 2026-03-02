@@ -86,7 +86,7 @@ CREATE TABLE queries (
   patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
   subject TEXT NOT NULL,
   description TEXT,
-  status TEXT CHECK (status IN ('open', 'in_progress', 'resolved')) DEFAULT 'open',
+  status TEXT CHECK (status IN ('open', 'in_progress', 'completed')) DEFAULT 'open',
   assigned_to UUID REFERENCES profiles(id),
   response TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
@@ -105,18 +105,19 @@ ALTER TABLE queries ENABLE ROW LEVEL SECURITY;
 -- 6. RLS-- Use safer, non-recursive policies using JWT metadata roles
 -- Profiles
 CREATE POLICY "Users view own profile" ON profiles FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users view own profile" ON profiles FOR SELECT USING (auth.uid() = id);
 CREATE POLICY "Admins full access profiles" ON profiles FOR ALL USING (
-  (auth.jwt() -> 'user_metadata' ->> 'role') = 'admin'
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
 CREATE POLICY "Staff view all profiles" ON profiles FOR SELECT USING (
-  (auth.jwt() -> 'user_metadata' ->> 'role') = 'staff'
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'staff')
 );
 
 -- Patients
 CREATE POLICY "Patients view own info" ON patients FOR SELECT USING (user_id = auth.uid());
 CREATE POLICY "Patients update own info" ON patients FOR UPDATE USING (user_id = auth.uid());
 CREATE POLICY "Staff/Admin view all patients" ON patients FOR SELECT USING (
-  (auth.jwt() -> 'user_metadata' ->> 'role') IN ('staff', 'admin')
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('staff', 'admin'))
 );
 
 -- Appointments
@@ -124,7 +125,7 @@ CREATE POLICY "Patients view own appointments" ON appointments FOR SELECT USING 
   patient_id IN (SELECT id FROM patients WHERE user_id = auth.uid())
 );
 CREATE POLICY "Staff/Admin manage all appointments" ON appointments FOR ALL USING (
-  (auth.jwt() -> 'user_metadata' ->> 'role') IN ('staff', 'admin')
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('staff', 'admin'))
 );
 
 -- Treatments
@@ -132,7 +133,7 @@ CREATE POLICY "Patients view own treatments" ON treatments FOR SELECT USING (
   patient_id IN (SELECT id FROM patients WHERE user_id = auth.uid())
 );
 CREATE POLICY "Staff/Admin manage all treatments" ON treatments FOR ALL USING (
-  (auth.jwt() -> 'user_metadata' ->> 'role') IN ('staff', 'admin')
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('staff', 'admin'))
 );
 
 -- Medical Reports
@@ -143,7 +144,7 @@ CREATE POLICY "Patients insert own reports" ON medical_reports FOR INSERT WITH C
   patient_id IN (SELECT id FROM patients WHERE user_id = auth.uid())
 );
 CREATE POLICY "Staff/Admin view all reports" ON medical_reports FOR SELECT USING (
-  (auth.jwt() -> 'user_metadata' ->> 'role') IN ('staff', 'admin')
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('staff', 'admin'))
 );
 
 -- Queries
@@ -154,8 +155,14 @@ CREATE POLICY "Patients create own queries" ON queries FOR INSERT WITH CHECK (
   patient_id IN (SELECT id FROM patients WHERE user_id = auth.uid())
 );
 CREATE POLICY "Staff/Admin manage all queries" ON queries FOR ALL USING (
-  (auth.jwt() -> 'user_metadata' ->> 'role') IN ('staff', 'admin')
+  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('staff', 'admin'))
 );
+
+-- Doctors
+CREATE POLICY "Anyone can view doctors" ON doctors FOR SELECT USING (true);
+CREATE POLICY "Admins manage doctors" ON doctors FOR ALL 
+USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'))
+WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
 
 -- 7. Trigger Function
 CREATE OR REPLACE FUNCTION public.handle_new_user()

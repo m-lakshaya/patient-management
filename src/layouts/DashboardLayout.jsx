@@ -51,7 +51,7 @@ export default function DashboardLayout({ children }) {
             { name: 'Dashboard', icon: LayoutDashboard, path: '/admin/dashboard' },
             { name: 'Manage Users', icon: Users, path: '/admin/users' },
             { name: 'Doctors', icon: Stethoscope, path: '/admin/doctors' },
-            { name: 'Analytics', icon: BarChart3, path: '/admin/analytics' },
+            { name: 'Manage Queries', icon: MessageSquare, path: '/admin/queries' },
         ],
     }
 

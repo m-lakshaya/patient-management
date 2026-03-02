@@ -128,8 +128,14 @@ export default function MedicalReports() {
                 </div>
                 <label className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all cursor-pointer shadow-lg shadow-blue-200">
                     {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileUp className="w-4 h-4" />}
-                    Upload New Report
-                    <input type="file" className="hidden" onChange={handleUpload} disabled={uploading} />
+                    <span className="text-[10px] opacity-70 block">Supported: PDF, JPG, PNG, DOCX</span>
+                    <input
+                        type="file"
+                        className="hidden"
+                        onChange={handleUpload}
+                        disabled={uploading}
+                        accept=".pdf,.jpg,.jpeg,.png,.docx"
+                    />
                 </label>
             </div>
 
