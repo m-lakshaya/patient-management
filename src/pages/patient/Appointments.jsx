@@ -99,7 +99,7 @@ export default function Appointments() {
                     notes: notes,
                     status: 'scheduled'
                 }),
-                5000,
+                10000,
                 'Request Appointment'
             )
 

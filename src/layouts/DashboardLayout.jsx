@@ -46,12 +46,14 @@ export default function DashboardLayout({ children }) {
             { name: 'Manage Queries', icon: MessageSquare, path: '/staff/queries' },
             { name: 'Manage Treatments', icon: History, path: '/staff/treatments' },
             { name: 'Patients', icon: Users, path: '/staff/patients' },
+            { name: 'Appointments', icon: Calendar, path: '/staff/appointments' },
         ],
         admin: [
             { name: 'Dashboard', icon: LayoutDashboard, path: '/admin/dashboard' },
             { name: 'Manage Users', icon: Users, path: '/admin/users' },
             { name: 'Doctors', icon: Stethoscope, path: '/admin/doctors' },
             { name: 'Manage Queries', icon: MessageSquare, path: '/admin/queries' },
+            { name: 'Appointments', icon: Calendar, path: '/admin/appointments' },
         ],
     }
 

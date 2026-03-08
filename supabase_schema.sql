@@ -17,7 +17,25 @@ DROP TABLE IF EXISTS profiles;
 -- 3. Drop the custom type if it exists
 DROP TYPE IF EXISTS user_role;
 
--- 4. Recreate Tables
+-- 4. Helper Functions for RLS
+DROP FUNCTION IF EXISTS public.check_role(text);
+DROP FUNCTION IF EXISTS public.check_role_in(text[]);
+
+CREATE OR REPLACE FUNCTION public.check_role(target_role text)
+RETURNS boolean AS $$
+BEGIN
+  RETURN (auth.jwt() ->> 'role') = target_role;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION public.check_role_in(target_roles text[])
+RETURNS boolean AS $$
+BEGIN
+  RETURN (auth.jwt() ->> 'role') = ANY(target_roles);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 5. Recreate Tables
 -- 1️⃣ Profiles Table (Using TEXT for role to avoid ENUM issues)
 CREATE TABLE profiles (
   id UUID PRIMARY KEY REFERENCES auth.users ON DELETE CASCADE,
@@ -106,35 +124,28 @@ ALTER TABLE queries ENABLE ROW LEVEL SECURITY;
 -- Profiles
 CREATE POLICY "Users view own profile" ON profiles FOR SELECT USING (auth.uid() = id);
 CREATE POLICY "Users view own profile" ON profiles FOR SELECT USING (auth.uid() = id);
-CREATE POLICY "Admins full access profiles" ON profiles FOR ALL USING (
-  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-);
-CREATE POLICY "Staff view all profiles" ON profiles FOR SELECT USING (
-  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'staff')
-);
+CREATE POLICY "Admins full access profiles" ON profiles FOR ALL USING (check_role('admin'));
+CREATE POLICY "Staff view all profiles" ON profiles FOR SELECT USING (check_role('staff'));
 
 -- Patients
 CREATE POLICY "Patients view own info" ON patients FOR SELECT USING (user_id = auth.uid());
 CREATE POLICY "Patients update own info" ON patients FOR UPDATE USING (user_id = auth.uid());
-CREATE POLICY "Staff/Admin view all patients" ON patients FOR SELECT USING (
-  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('staff', 'admin'))
-);
+CREATE POLICY "Staff/Admin view all patients" ON patients FOR SELECT USING (check_role_in(ARRAY['staff', 'admin']));
 
 -- Appointments
 CREATE POLICY "Patients view own appointments" ON appointments FOR SELECT USING (
   patient_id IN (SELECT id FROM patients WHERE user_id = auth.uid())
 );
-CREATE POLICY "Staff/Admin manage all appointments" ON appointments FOR ALL USING (
-  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('staff', 'admin'))
+CREATE POLICY "Patients create own appointments" ON appointments FOR INSERT WITH CHECK (
+  patient_id IN (SELECT id FROM patients WHERE user_id = auth.uid())
 );
+CREATE POLICY "Staff/Admin manage all appointments" ON appointments FOR ALL USING (public.check_role_in(ARRAY['staff', 'admin']));
 
 -- Treatments
 CREATE POLICY "Patients view own treatments" ON treatments FOR SELECT USING (
   patient_id IN (SELECT id FROM patients WHERE user_id = auth.uid())
 );
-CREATE POLICY "Staff/Admin manage all treatments" ON treatments FOR ALL USING (
-  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('staff', 'admin'))
-);
+CREATE POLICY "Staff/Admin manage all treatments" ON treatments FOR ALL USING (check_role_in(ARRAY['staff', 'admin']));
 
 -- Medical Reports
 CREATE POLICY "Patients view own reports" ON medical_reports FOR SELECT USING (
@@ -143,9 +154,7 @@ CREATE POLICY "Patients view own reports" ON medical_reports FOR SELECT USING (
 CREATE POLICY "Patients insert own reports" ON medical_reports FOR INSERT WITH CHECK (
   patient_id IN (SELECT id FROM patients WHERE user_id = auth.uid())
 );
-CREATE POLICY "Staff/Admin view all reports" ON medical_reports FOR SELECT USING (
-  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('staff', 'admin'))
-);
+CREATE POLICY "Staff/Admin view all reports" ON medical_reports FOR SELECT USING (check_role_in(ARRAY['staff', 'admin']));
 
 -- Queries
 CREATE POLICY "Patients view own queries" ON queries FOR SELECT USING (
@@ -154,15 +163,13 @@ CREATE POLICY "Patients view own queries" ON queries FOR SELECT USING (
 CREATE POLICY "Patients create own queries" ON queries FOR INSERT WITH CHECK (
   patient_id IN (SELECT id FROM patients WHERE user_id = auth.uid())
 );
-CREATE POLICY "Staff/Admin manage all queries" ON queries FOR ALL USING (
-  EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('staff', 'admin'))
-);
+CREATE POLICY "Staff/Admin manage all queries" ON queries FOR ALL USING (check_role_in(ARRAY['staff', 'admin']));
 
 -- Doctors
 CREATE POLICY "Anyone can view doctors" ON doctors FOR SELECT USING (true);
 CREATE POLICY "Admins manage doctors" ON doctors FOR ALL 
-USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'))
-WITH CHECK (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'));
+USING (check_role('admin'))
+WITH CHECK (check_role('admin'));
 
 -- 7. Trigger Function
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -205,3 +212,34 @@ INSERT INTO public.patients (user_id)
 SELECT id FROM public.profiles 
 WHERE role = 'patient'
 ON CONFLICT (user_id) DO NOTHING;
+
+-- 9. Storage Policies (Run these in the SQL Editor after creating the 'medical-reports' bucket)
+-- Note: Buckets must be created manually in the Supabase Dashboard, or via SQL:
+-- INSERT INTO storage.buckets (id, name, public) VALUES ('medical-reports', 'medical-reports', false);
+
+-- Policy for Patients to upload their own reports
+CREATE POLICY "Patients can upload own reports"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (
+  bucket_id = 'medical-reports' AND
+  (storage.foldername(name))[1] = (SELECT id::text FROM patients WHERE user_id = auth.uid())
+);
+
+-- Policy for Patients to view their own reports
+CREATE POLICY "Patients can view own reports"
+ON storage.objects FOR SELECT
+TO authenticated
+USING (
+  bucket_id = 'medical-reports' AND
+  (storage.foldername(name))[1] = (SELECT id::text FROM patients WHERE user_id = auth.uid())
+);
+
+-- Policy for Staff/Admins to view all reports
+CREATE POLICY "Staff and Admins can view all reports"
+ON storage.objects FOR SELECT
+TO authenticated
+USING (
+  bucket_id = 'medical-reports' AND
+  (SELECT role FROM profiles WHERE id = auth.uid()) IN ('staff', 'admin')
+);

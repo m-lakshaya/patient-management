@@ -15,6 +15,7 @@ import StaffDashboard from './pages/staff/StaffDashboard'
 import QueryManagement from './pages/staff/QueryManagement'
 import TreatmentManagement from './pages/staff/TreatmentManagement'
 import PatientList from './pages/staff/PatientList'
+import AppointmentManagement from './pages/staff/AppointmentManagement'
 
 import UserManagement from './pages/admin/UserManagement'
 import AnalyticsDashboard from './pages/admin/AnalyticsDashboard'
@@ -57,6 +58,7 @@ function App() {
                                     <Route path="queries" element={<QueryManagement />} />
                                     <Route path="treatments" element={<TreatmentManagement />} />
                                     <Route path="patients" element={<PatientList />} />
+                                    <Route path="appointments" element={<AppointmentManagement />} />
                                 </Routes>
                             </ErrorBoundary>
                         </DashboardLayout>
@@ -73,6 +75,7 @@ function App() {
                                     <Route path="users" element={<UserManagement />} />
                                     <Route path="doctors" element={<DoctorManagement />} />
                                     <Route path="queries" element={<QueryManagement />} />
+                                    <Route path="appointments" element={<AppointmentManagement />} />
                                 </Routes>
                             </ErrorBoundary>
                         </DashboardLayout>

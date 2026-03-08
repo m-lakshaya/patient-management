@@ -60,7 +60,7 @@ export default function DoctorManagement() {
             if (editingId) {
                 const { error } = await withTimeout(
                     supabase.from('doctors').update(formData).eq('id', editingId),
-                    5000,
+                    10000,
                     'Doctor Update'
                 )
                 if (error) throw error
@@ -68,7 +68,7 @@ export default function DoctorManagement() {
             } else {
                 const { error } = await withTimeout(
                     supabase.from('doctors').insert(formData),
-                    5000,
+                    10000,
                     'Doctor Insert'
                 )
                 if (error) throw error

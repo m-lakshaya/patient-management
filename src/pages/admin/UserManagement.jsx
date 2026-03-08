@@ -8,7 +8,9 @@ import {
     MoreVertical,
     Loader2,
     CheckCircle,
-    AlertCircle
+    AlertCircle,
+    Plus,
+    X
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 
@@ -16,6 +18,14 @@ export default function UserManagement() {
     const [users, setUsers] = useState([])
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
+    const [isModalOpen, setIsModalOpen] = useState(false)
+    const [submitting, setSubmitting] = useState(false)
+    const [formData, setFormData] = useState({
+        full_name: '',
+        email: '',
+        password: '',
+        role: 'patient'
+    })
 
     useEffect(() => {
         fetchUsers()
@@ -46,6 +56,35 @@ export default function UserManagement() {
         }
     }
 
+    async function handleAddUser(e) {
+        e.preventDefault()
+        setSubmitting(true)
+        try {
+            // Note: In a real app, you'd use a service role or edge function.
+            // For now, we'll use the standard signUp.
+            const { data, error } = await supabase.auth.signUp({
+                email: formData.email,
+                password: formData.password,
+                options: {
+                    data: {
+                        full_name: formData.full_name,
+                        role: formData.role
+                    }
+                }
+            })
+
+            if (error) throw error
+            toast.success(`${formData.role} account created successfully!`)
+            setIsModalOpen(false)
+            setFormData({ full_name: '', email: '', password: '', role: 'patient' })
+            fetchUsers()
+        } catch (error) {
+            toast.error(error.message)
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
     const filteredUsers = users.filter(u =>
         u.full_name?.toLowerCase().includes(search.toLowerCase()) ||
         u.email?.toLowerCase().includes(search.toLowerCase())
@@ -53,9 +92,18 @@ export default function UserManagement() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h2 className="text-2xl font-bold text-slate-900">User Management</h2>
-                <p className="text-slate-500">Manage system access and assign roles to users.</p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h2 className="text-2xl font-bold text-slate-900">User Management</h2>
+                    <p className="text-slate-500">Manage system access and assign roles to users.</p>
+                </div>
+                <button
+                    onClick={() => setIsModalOpen(true)}
+                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
+                >
+                    <Plus className="w-4 h-4" />
+                    Add New User
+                </button>
             </div>
 
             <div className="relative">
@@ -97,8 +145,8 @@ export default function UserManagement() {
                                     </td>
                                     <td className="px-8 py-6">
                                         <span className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize ${u.role === 'admin' ? 'bg-indigo-50 text-indigo-700' :
-                                                u.role === 'staff' ? 'bg-amber-50 text-amber-700' :
-                                                    'bg-emerald-50 text-emerald-700'
+                                            u.role === 'staff' ? 'bg-amber-50 text-amber-700' :
+                                                'bg-emerald-50 text-emerald-700'
                                             }`}>
                                             {u.role}
                                         </span>
@@ -125,6 +173,72 @@ export default function UserManagement() {
                     </table>
                 </div>
             </div>
+
+            {/* Add User Modal */}
+            {isModalOpen && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
+                    <div className="bg-white rounded-3xl w-full max-w-lg relative overflow-hidden shadow-2xl">
+                        <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0">
+                            <h3 className="text-xl font-bold text-slate-900">Add New User</h3>
+                            <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-xl transition-colors">
+                                <X className="w-5 h-5 text-slate-500" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleAddUser} className="p-8 space-y-4">
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-bold text-slate-700">Full Name</label>
+                                <input
+                                    required
+                                    className="w-full px-4 py-3 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                                    value={formData.full_name}
+                                    onChange={e => setFormData({ ...formData, full_name: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-bold text-slate-700">Email Address</label>
+                                <input
+                                    type="email"
+                                    required
+                                    className="w-full px-4 py-3 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                                    value={formData.email}
+                                    onChange={e => setFormData({ ...formData, email: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-bold text-slate-700">Initial Password</label>
+                                <input
+                                    type="password"
+                                    required
+                                    minLength={6}
+                                    className="w-full px-4 py-3 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                                    value={formData.password}
+                                    onChange={e => setFormData({ ...formData, password: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-bold text-slate-700">Designated Role</label>
+                                <select
+                                    className="w-full px-4 py-3 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+                                    value={formData.role}
+                                    onChange={e => setFormData({ ...formData, role: e.target.value })}
+                                >
+                                    <option value="patient">Patient</option>
+                                    <option value="staff">Staff</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                            </div>
+                            <button
+                                disabled={submitting}
+                                className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100 flex items-center justify-center gap-2 disabled:opacity-50 mt-4"
+                            >
+                                {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Users className="w-5 h-5" />}
+                                Create User Account
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
