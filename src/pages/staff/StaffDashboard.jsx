@@ -7,7 +7,8 @@ import {
     History,
     TrendingUp,
     Loader2,
-    ArrowRight
+    ArrowRight,
+    Calendar
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
@@ -16,8 +17,8 @@ export default function StaffDashboard() {
     const [stats, setStats] = useState({
         totalQueries: 0,
         openQueries: 0,
-        totalPatients: 0,
-        totalTreatments: 0,
+        totalQueries: 0,
+        openQueries: 0,
         pendingAppointments: 0
     })
     const [loading, setLoading] = useState(true)
@@ -25,19 +26,15 @@ export default function StaffDashboard() {
     useEffect(() => {
         async function fetchStats() {
             try {
-                const [queries, open, patients, treatments] = await Promise.all([
+                const [queries, open, appointments] = await Promise.all([
                     supabase.from('queries').select('*', { count: 'exact', head: true }),
                     supabase.from('queries').select('*', { count: 'exact', head: true }).eq('status', 'open'),
-                    supabase.from('patients').select('*', { count: 'exact', head: true }),
-                    supabase.from('treatments').select('*', { count: 'exact', head: true }),
                     supabase.from('appointments').select('*', { count: 'exact', head: true }).eq('status', 'scheduled')
                 ])
 
                 setStats({
                     totalQueries: queries.count || 0,
                     openQueries: open.count || 0,
-                    totalPatients: patients.count || 0,
-                    totalTreatments: treatments.count || 0,
                     pendingAppointments: appointments.count || 0
                 })
             } catch (error) {
@@ -52,10 +49,8 @@ export default function StaffDashboard() {
     if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 text-blue-600 animate-spin" /></div>
 
     const staffCards = [
-        { label: 'Open Queries', value: stats.openQueries, icon: MessageSquare, color: 'text-amber-600', bg: 'bg-amber-50', link: '/staff/queries' },
-        { label: 'Total Patients', value: stats.totalPatients, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50', link: '/staff/patients' },
-        { label: 'Treatments Logged', value: stats.totalTreatments, icon: History, color: 'text-emerald-600', bg: 'bg-emerald-50', link: '/staff/treatments' },
         { label: 'Pending Appointments', value: stats.pendingAppointments, icon: Calendar, color: 'text-rose-600', bg: 'bg-rose-50', link: '/staff/appointments' },
+        { label: 'Open Queries', value: stats.openQueries, icon: MessageSquare, color: 'text-amber-600', bg: 'bg-amber-50', link: '/staff/queries' },
         { label: 'Total Inquiries', value: stats.totalQueries, icon: TrendingUp, color: 'text-indigo-600', bg: 'bg-indigo-50', link: '/staff/queries' },
     ]
 

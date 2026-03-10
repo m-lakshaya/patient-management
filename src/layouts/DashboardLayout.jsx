@@ -44,8 +44,6 @@ export default function DashboardLayout({ children }) {
         staff: [
             { name: 'Dashboard', icon: LayoutDashboard, path: '/staff/dashboard' },
             { name: 'Manage Queries', icon: MessageSquare, path: '/staff/queries' },
-            { name: 'Manage Treatments', icon: History, path: '/staff/treatments' },
-            { name: 'Patients', icon: Users, path: '/staff/patients' },
             { name: 'Appointments', icon: Calendar, path: '/staff/appointments' },
         ],
         admin: [

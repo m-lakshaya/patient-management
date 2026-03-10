@@ -11,7 +11,8 @@ import {
     Search,
     Filter,
     Stethoscope,
-    AlertCircle
+    AlertCircle,
+    X
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 
@@ -20,6 +21,11 @@ export default function AppointmentManagement() {
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
     const [filter, setFilter] = useState('all')
+
+    const [isTreatmentModalOpen, setIsTreatmentModalOpen] = useState(false)
+    const [selectedAppointment, setSelectedAppointment] = useState(null)
+    const [treatmentData, setTreatmentData] = useState({ diagnosis: '', prescription: '' })
+    const [submitting, setSubmitting] = useState(false)
 
     useEffect(() => {
         fetchAppointments()
@@ -65,10 +71,55 @@ export default function AppointmentManagement() {
         }
     }
 
+    async function handleCompleteAppointment(e) {
+        e.preventDefault()
+        setSubmitting(true)
+        try {
+            // 1. Update appointment status
+            const { error: apptError } = await supabase
+                .from('appointments')
+                .update({ status: 'completed' })
+                .eq('id', selectedAppointment.id)
+            if (apptError) throw apptError
+
+            // 2. Insert treatment record
+            const { error: treatmentError } = await supabase
+                .from('treatments')
+                .insert({
+                    patient_id: selectedAppointment.patient_id,
+                    doctor_id: selectedAppointment.doctor_id,
+                    diagnosis: treatmentData.diagnosis,
+                    prescription: treatmentData.prescription,
+                    treatment_date: new Date().toISOString()
+                })
+            if (treatmentError) throw treatmentError
+
+            toast.success('Appointment completed and treatment logged!')
+            setIsTreatmentModalOpen(false)
+            setSelectedAppointment(null)
+            setTreatmentData({ diagnosis: '', prescription: '' })
+            fetchAppointments()
+        } catch (error) {
+            toast.error(error.message)
+        } finally {
+            setSubmitting(false)
+        }
+    }
+
     const filteredAppointments = appointments.filter(appt => {
-        const matchesSearch = appt.patients?.profiles?.full_name?.toLowerCase().includes(search.toLowerCase()) ||
-            appt.doctors?.name?.toLowerCase().includes(search.toLowerCase())
+        // If search is empty, show everything (don't let null joins hide records)
+        if (!search) {
+            const matchesFilter = filter === 'all' || appt.status === filter
+            return matchesFilter
+        }
+
+        const patientName = appt.patients?.profiles?.full_name?.toLowerCase() || ''
+        const doctorName = appt.doctors?.name?.toLowerCase() || ''
+        const searchLower = search.toLowerCase()
+
+        const matchesSearch = patientName.includes(searchLower) || doctorName.includes(searchLower)
         const matchesFilter = filter === 'all' || appt.status === filter
+
         return matchesSearch && matchesFilter
     })
 
@@ -159,8 +210,8 @@ export default function AppointmentManagement() {
                                         </td>
                                         <td className="px-8 py-6">
                                             <span className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize ${appt.status === 'scheduled' ? 'bg-blue-50 text-blue-700' :
-                                                    appt.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
-                                                        'bg-red-50 text-red-700'
+                                                appt.status === 'completed' ? 'bg-emerald-50 text-emerald-700' :
+                                                    'bg-red-50 text-red-700'
                                                 }`}>
                                                 {appt.status}
                                             </span>
@@ -170,9 +221,12 @@ export default function AppointmentManagement() {
                                                 {appt.status === 'scheduled' && (
                                                     <>
                                                         <button
-                                                            onClick={() => updateStatus(appt.id, 'completed')}
+                                                            onClick={() => {
+                                                                setSelectedAppointment(appt)
+                                                                setIsTreatmentModalOpen(true)
+                                                            }}
                                                             className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                                                            title="Mark as Completed"
+                                                            title="Complete Appointment and Log Treatment"
                                                         >
                                                             <CheckCircle className="w-5 h-5" />
                                                         </button>
@@ -201,6 +255,66 @@ export default function AppointmentManagement() {
                     </table>
                 </div>
             </div>
+
+            {/* Treatment Modal */}
+            {isTreatmentModalOpen && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsTreatmentModalOpen(false)} />
+                    <div className="bg-white rounded-3xl w-full max-w-lg relative shadow-2xl overflow-hidden">
+                        <div className="p-8 border-b border-slate-100 flex items-center justify-between">
+                            <h3 className="text-xl font-bold text-slate-900">Log Treatment Details</h3>
+                            <button onClick={() => setIsTreatmentModalOpen(false)}><X className="w-5 h-5 text-slate-500" /></button>
+                        </div>
+                        <form onSubmit={handleCompleteAppointment} className="p-8 space-y-6">
+                            <div className="p-4 bg-blue-50 rounded-xl mb-4 text-left">
+                                <p className="text-sm text-blue-800 font-medium tracking-tight">
+                                    You are completing the appointment for <strong className="font-extrabold">{selectedAppointment?.patients?.profiles?.full_name}</strong>.
+                                    This will log a permanent medical record.
+                                </p>
+                            </div>
+                            <div className="space-y-1.5 text-left">
+                                <label className="text-sm font-bold text-slate-700">Diagnosis</label>
+                                <textarea
+                                    required
+                                    rows="3"
+                                    className="w-full px-4 py-3 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-none transition-all text-slate-900"
+                                    placeholder="e.g., Viral infection, Seasonal allergies..."
+                                    value={treatmentData.diagnosis}
+                                    onChange={e => setTreatmentData({ ...treatmentData, diagnosis: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-1.5 text-left">
+                                <label className="text-sm font-bold text-slate-700">Prescription / Notes</label>
+                                <textarea
+                                    required
+                                    rows="4"
+                                    className="w-full px-4 py-3 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-none transition-all text-slate-900"
+                                    placeholder="Medications and dosage instructions..."
+                                    value={treatmentData.prescription}
+                                    onChange={e => setTreatmentData({ ...treatmentData, prescription: e.target.value })}
+                                />
+                            </div>
+                            <div className="pt-2 flex gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsTreatmentModalOpen(false)}
+                                    className="flex-1 px-6 py-3 border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-colors"
+                                    disabled={submitting}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="flex-1 px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors flex justify-center items-center"
+                                    disabled={submitting}
+                                >
+                                    {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Complete & Save Record'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
