@@ -33,24 +33,26 @@ export default function Login() {
             )
 
             // Race the auth call against a 5s timeout
-            try {
-                await Promise.race([
-                    supabase.auth.signInWithPassword({ email, password }),
-                    timeoutPromise
-                ])
-                console.log('--- AUTH CALL RESOLVED ---')
-            } catch (err) {
-                console.warn('--- AUTH CALL TIMED OUT OR FAILED ---', err.message)
-                // We don't throw here because useAuth (the background listener) 
-                // might still catch the SIGNED_IN event and redirect us.
+            const { data, error } = await Promise.race([
+                supabase.auth.signInWithPassword({ email, password }),
+                timeoutPromise
+            ])
+
+            if (error) {
+                console.error('--- LOGIN FAILED ---', error.message)
+                toast.error(error.message || 'Invalid login credentials')
+                setLoading(false)
+                return
             }
 
-            console.log('--- WAITING FOR REDIRECT FROM BACKGROUND LISTENER ---')
-            toast.success('Sign in initiated...')
+            console.log('--- AUTH CALL SUCCESSFUL ---')
+            toast.success('Signed in successfully!')
+            // Note: The redirection is still handled by the useEffect background listener
+            // once useAuth detects the new session and fetches the profile.
 
         } catch (error) {
             console.error('--- LOGIN CAUGHT EXCEPTION ---', error)
-            toast.error(error.message || 'Failed to login')
+            toast.error(error.message || 'An unexpected error occurred')
             setLoading(false)
         }
     }
